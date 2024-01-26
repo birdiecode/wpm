@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
@@ -18,7 +19,8 @@ namespace wpm
         {
             if (args.Length == 0)
             {
-
+               
+                Console.ReadKey();
             }
             else
             {
@@ -26,13 +28,35 @@ namespace wpm
                 {
                     if (args.Length > 1 && args[1] != "")
                     {
-                        var res = Install(args[1]);
-                        Console.WriteLine(res.Item2);
+                        var res = Install("kyosera_upd");
+                        if (res.Item1)
+                        {
+                            string param = "";
+                            try
+                            {
+                                param = res.Item2.InstallerSwitches.Silent;
+                            }
+                            catch (Exception ex) { }
+                            Console.WriteLine(res.Item2);
+                            if (res.Item2.InstallerType == "msi")
+                            {
+                                InstallMsi(res.Item3, param);
+                            }
+                            else if (res.Item2.InstallerType == "exe")
+                            {
+                                InstallExe(res.Item3, param);
+                            }
+                            else if (res.Item2.InstallerType == "zip")
+                            {
+                                (string, string) run_file = (res.Item2.NestedInstallerFiles[0].RelativeFilePath, res.Item2.NestedInstallerType);
+                                InstallZip(res.Item3, param, run_file);
+                            }
+                        }
                     }
 
                 } else if (args[0] == "unzip")
                 {
-                    UnZip("C:\\ProgramData\\wpm\\kyosera_upd\\8.3.0815\\KX_Universal_Printer_Driver-KTeV1aM12W.zip", "C:\\ProgramData\\wpm\\kyosera_upd\\8.3.0815\\extr");
+                    //UnZip("C:\\ProgramData\\wpm\\kyosera_upd\\8.3.0815\\KX_Universal_Printer_Driver-KTeV1aM12W.zip", "C:\\ProgramData\\wpm\\kyosera_upd\\8.3.0815\\extr");
                 }
                 else
                 {
@@ -41,11 +65,11 @@ namespace wpm
             }
         }
 
-        static (bool, string ,string) Install(string name)
+        static (bool, dynamic, string) Install(string name)
         {
             var a = TryGetPackage(name).Result;
             var data = GetDowloadUrl(a.Item1, a.Item2).Result;
-            var durl = data.Item1;
+            var durl = (string)data.InstallerUrl;
             if (name != a.Item1)
             {
                 Console.WriteLine($"Error: did u mean {a.Item1}");
@@ -54,8 +78,8 @@ namespace wpm
             var path = DOWNLOAD_PATH + $"{a.Item1}\\{a.Item2}";
             var path_file = path + $"\\{durl.Split('/').Last()}";
             CreateFolder(path);
-            DowloadPackage(durl, path_file);
-            return (true, data.Item2, path_file);
+            DownloadPackage(durl, path_file);
+            return (true, data, path_file);
         }
 
         static async Task<String> GetInfo()
@@ -91,7 +115,7 @@ namespace wpm
         static async Task<(string, string)> TryGetPackage(string name)
         {
             string apiUrl = "https://repo.v2t2.ru/23af2517-f6a5-43df-9f90-2f7c56143909/manifestSearch";
-            
+
             using (HttpClient client = new HttpClient())
             {
                 string jsonData = $@"
@@ -109,7 +133,7 @@ namespace wpm
                 {
                     StringContent content = new StringContent(jsonData, Encoding.UTF8, "application/json");
                     HttpResponseMessage response = await client.PostAsync(apiUrl, content);
-                   
+
 
                     if (response.IsSuccessStatusCode)
                     {
@@ -131,7 +155,7 @@ namespace wpm
             }
         }
 
-        static async Task<(string, string)> GetDowloadUrl(string name, string version)
+        static async Task<dynamic> GetDowloadUrl(string name, string version)
         {
             string apiUrl = $"https://repo.v2t2.ru/23af2517-f6a5-43df-9f90-2f7c56143909/packageManifests/{name}?Version={version}";
             using (HttpClient client = new HttpClient())
@@ -145,7 +169,7 @@ namespace wpm
                         // Read and print the response content as a string
                         string responseBody = await response.Content.ReadAsStringAsync();
                         dynamic result = JsonConvert.DeserializeObject(responseBody);
-                        return (result.Data.Versions[0].Installers[0].InstallerUrl, result.Data.Versions[0].Installers[0].InstallerType);
+                        return result.Data.Versions[0].Installers[0];
                     }
                     else
                     {
@@ -179,8 +203,9 @@ namespace wpm
                 Console.WriteLine("Folder already exists.");
             }
         }
-        static async void DowloadPackage(string url, string path)
+        static async void DownloadPackage(string url, string path)
         {
+            Console.WriteLine("Download");
             using (WebClient webClient = new WebClient())
             {
                 try
@@ -201,11 +226,60 @@ namespace wpm
             }
         }
 
-        static void UnZip(string zipFilePath, string extractPath)
+        static void InstallMsi(string file, string param)
         {
             try
             {
-                
+                Process process = new Process();
+                process.StartInfo.FileName = "msiexec.exe";
+                process.StartInfo.Arguments = $"{param} /i \"{file}\" ";
+                process.Start();
+                process.WaitForExit();
+
+                Console.WriteLine("MSI installation completed.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
+
+        static void InstallExe(string file, string param)
+        {
+            try
+            {
+                Process process = new Process();
+                process.StartInfo.FileName = file;
+                process.StartInfo.Arguments = param;
+                process.Start();
+                process.WaitForExit();
+
+                Console.WriteLine("MSI installation completed.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
+            }
+        }
+
+        static void InstallZip(string file, string param, (string, string) run_file)
+        {
+            UnZip(file, Path.GetDirectoryName(file));
+            if(run_file.Item2 == "exe")
+            {
+                InstallExe(Path.GetDirectoryName(file) + $"\\{run_file.Item1}", param);
+            }
+            else if (run_file.Item2 == "msi")
+            {
+                InstallMsi(Path.GetDirectoryName(file) + $"\\{run_file.Item1}", param);
+            }
+        }
+        static void UnZip(string zipFilePath, string extractPath)
+        {
+            Console.WriteLine("UnZip");
+            try
+            {
+
                 if (!Directory.Exists(extractPath))
                 {
                     Directory.CreateDirectory(extractPath);
@@ -220,6 +294,6 @@ namespace wpm
             {
                 Console.WriteLine($"Error: {ex.Message}");
             }
-        }
+        } 
     }
 }
