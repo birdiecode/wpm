@@ -1,4 +1,5 @@
-﻿using System;
+﻿
+using System;
 using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
@@ -15,54 +16,41 @@ namespace wpm
     internal class Program
     {
         const string DOWNLOAD_PATH = "C:\\ProgramData\\wpm\\";
+
+        static void CallbackInstall(string installApp)
+        {
+            var res = Install(installApp);
+            if (res.Item1)
+            {
+                string param = "";
+                try
+                {
+                    param = res.Item2.InstallerSwitches.Silent;
+                }
+                catch (Exception ex) { }
+                Console.WriteLine(res.Item2);
+                if (res.Item2.InstallerType == "msi")
+                {
+                    InstallMsi(res.Item3, param);
+                }
+                else if (res.Item2.InstallerType == "exe")
+                {
+                    InstallExe(res.Item3, param);
+                }
+                else if (res.Item2.InstallerType == "zip")
+                {
+                    (string, string) run_file = (res.Item2.NestedInstallerFiles[0].RelativeFilePath, res.Item2.NestedInstallerType);
+                    InstallZip(res.Item3, param, run_file);
+                }
+            }
+        }
+
+
         static void Main(string[] args)
         {
-            if (args.Length == 0)
-            {
-               
-                Console.ReadKey();
-            }
-            else
-            {
-                if (args[0] == "install")
-                {
-                    if (args.Length > 1 && args[1] != "")
-                    {
-                        var res = Install("kyosera_upd");
-                        if (res.Item1)
-                        {
-                            string param = "";
-                            try
-                            {
-                                param = res.Item2.InstallerSwitches.Silent;
-                            }
-                            catch (Exception ex) { }
-                            Console.WriteLine(res.Item2);
-                            if (res.Item2.InstallerType == "msi")
-                            {
-                                InstallMsi(res.Item3, param);
-                            }
-                            else if (res.Item2.InstallerType == "exe")
-                            {
-                                InstallExe(res.Item3, param);
-                            }
-                            else if (res.Item2.InstallerType == "zip")
-                            {
-                                (string, string) run_file = (res.Item2.NestedInstallerFiles[0].RelativeFilePath, res.Item2.NestedInstallerType);
-                                InstallZip(res.Item3, param, run_file);
-                            }
-                        }
-                    }
-
-                } else if (args[0] == "unzip")
-                {
-                    //UnZip("C:\\ProgramData\\wpm\\kyosera_upd\\8.3.0815\\KX_Universal_Printer_Driver-KTeV1aM12W.zip", "C:\\ProgramData\\wpm\\kyosera_upd\\8.3.0815\\extr");
-                }
-                else
-                {
-                    Console.WriteLine($"Error: {args[0]}");
-                }
-            }
+            var dd = new ArgsParse(args);
+            dd.RegistraCallback("install", CallbackInstall);
+            dd.Parse();
         }
 
         static (bool, dynamic, string) Install(string name)
