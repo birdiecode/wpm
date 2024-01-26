@@ -1,5 +1,6 @@
 ﻿using System;
 using System.IO;
+using System.IO.Compression;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
@@ -28,7 +29,10 @@ namespace wpm
                         var res = Install(args[1]);
                         Console.WriteLine(res.Item2);
                     }
-                   
+
+                } else if (args[0] == "unzip")
+                {
+                    UnZip("C:\\ProgramData\\wpm\\kyosera_upd\\8.3.0815\\KX_Universal_Printer_Driver-KTeV1aM12W.zip", "C:\\ProgramData\\wpm\\kyosera_upd\\8.3.0815\\extr");
                 }
                 else
                 {
@@ -194,6 +198,27 @@ namespace wpm
                         Console.WriteLine($"HTTP Status Code: {response.StatusCode}");
                     }
                 }
+            }
+        }
+
+        static void UnZip(string zipFilePath, string extractPath)
+        {
+            try
+            {
+                
+                if (!Directory.Exists(extractPath))
+                {
+                    Directory.CreateDirectory(extractPath);
+                }
+
+                // Extract the contents of the ZIP file
+                ZipFile.ExtractToDirectory(zipFilePath, extractPath);
+
+                Console.WriteLine("ZIP file has been successfully extracted.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error: {ex.Message}");
             }
         }
     }
